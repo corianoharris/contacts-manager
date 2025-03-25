@@ -51,21 +51,21 @@ export default function ContactManagement() {
     toast({
       title: "Syncing...",
       description: "Attempting to sync your changes with the server.",
-      duration: 3000,
-    })
-
+      duration: 10000,
+    });
+  
     try {
-      await syncWithServer()
-
-      // Toast is handled in the syncWithServer function
+      await syncWithServer();
+      // Success toast is handled in syncWithServer
     } catch (error) {
       toast({
         title: "Sync Failed",
-        description: `Error: ${(error as Error).message}`,
+        description: `Error: ${(error as Error).message || "Unknown error occurred"}`,
         variant: "destructive",
-      })
+        duration: 5000,
+      });
     }
-  }
+  };
 
   // Adding a new contact
   const handleAddContact = (contact: ContactFormInput) => {

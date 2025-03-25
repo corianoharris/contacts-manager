@@ -1,246 +1,372 @@
-import Airtable from "airtable"
-import type { Contact, CommunicationEntry } from "@/types/contact"
+import Airtable, { type Records, type FieldSet, type Record } from "airtable";
+import {
+  type Contact,
+  type CommunicationEntry,
+  ContactStatus,
+  ContactCategory,
+  ContactType,
+  type MaritalStatus,
+} from "@/types/contact";
 
 // Initialize Airtable with Personal Access Token
-// Check for both possible environment variable names with the new NEXT_PUBLIC_ prefix
-const token = process.env.AIRTABLE_PAT || process.env.AIRTABLE_API_KEY
-console.log("Airtable authentication present:", !!token)
+const token =
+  process.env.AIRTABLE_PAT ||
+  process.env.NEXT_PUBLIC_AIRTABLE_PAT ||
+  process.env.AIRTABLE_API_KEY ||
+  process.env.NEXT_PUBLIC_AIRTABLE_API_KEY;
 
 if (!token) {
-  console.error("No Airtable authentication token found in environment variables!")
-  console.error("Please set either AIRTABLE_PAT or AIRTABLE_API_KEY")
+  throw new Error(
+    "No Airtable authentication token found in environment variables! Please set either AIRTABLE_PAT, NEXT_PUBLIC_AIRTABLE_PAT, AIRTABLE_API_KEY, or NEXT_PUBLIC_AIRTABLE_API_KEY"
+  );
 }
 
-// The Airtable library still uses "apiKey" parameter even for PATs
-const airtable = new Airtable({
-  apiKey: token || "", // Provide empty string as fallback to avoid undefined
-})
+const airtable = new Airtable({ apiKey: token });
 
-// Get the base with updated environment variable name
-const baseId = process.env.AIRTABLE_BASE_ID || ""
-console.log("Airtable base ID present:", !!baseId)
-
+const baseId = process.env.AIRTABLE_BASE_ID || process.env.NEXT_PUBLIC_AIRTABLE_BASE_ID || "";
 if (!baseId) {
-  console.error("AIRTABLE_BASE_ID environment variable is not set!")
+  throw new Error("AIRTABLE_BASE_ID or NEXT_PUBLIC_AIRTABLE_BASE_ID environment variable is not set!");
 }
 
-const base = airtable.base(baseId)
+const base = airtable.base(baseId);
 
 // Table names
-const CONTACTS_TABLE = "Contacts"
-const COMMUNICATIONS_TABLE = "Communications"
+const CONTACTS_TABLE = "Contacts";
+const COMMUNICATIONS_TABLE = "Communications";
+
+// Define a type for Airtable fields based on your schema, with an index signature
+interface AirtableContactFields {
+  [key: string]: string | number | boolean | undefined;
+  name?: string;
+  role?: string;
+  status?: ContactStatus;
+  category?: ContactCategory;
+  description?: string;
+  birthday?: string;
+  age?: string;
+  address?: string;
+  "has kids"?: boolean;
+  "number of kids"?: number;
+  "marital status"?: MaritalStatus;
+  "additional details"?: string;
+  "last contacted at"?: string;
+  phone?: string;
+  email?: string;
+  "contact type"?: ContactType;
+  "contact date"?: string;
+}
+
+
+// Helper functions to convert string values to enums
+function toContactStatus(status: any): ContactStatus {
+  if (!status) return ContactStatus.Active;
+  const statusStr = String(status).toUpperCase();
+  if (statusStr === "ACTIVE") return ContactStatus.ACTIVE;
+  if (statusStr === "INACTIVE") return ContactStatus.INACTIVE;
+  if (statusStr === "PENDING") return ContactStatus.PENDING;
+  if (statusStr === "BLOCKED") return ContactStatus.Blocked;
+  return ContactStatus.Active;
+}
+
+function toContactCategory(category: any): ContactCategory {
+  if (!category) return ContactCategory.Client;
+  const categoryStr = String(category);
+  for (const enumValue of Object.values(ContactCategory)) {
+    if (categoryStr === enumValue) return enumValue;
+  }
+  return ContactCategory.Client;
+}
+
+function toContactType(type: any): ContactType | undefined {
+  if (!type) return undefined;
+  const typeStr = String(type);
+  for (const enumValue of Object.values(ContactType)) {
+    if (typeStr === enumValue) return enumValue;
+  }
+  return undefined;
+}
+
+function toMaritalStatus(status: any): MaritalStatus | undefined {
+  if (!status) return undefined;
+  const statusStr = String(status);
+  if (statusStr === "Single" || statusStr === "Divorced" || statusStr === "Separated" || statusStr === "Widow") {
+    return statusStr as MaritalStatus;
+  }
+  return undefined;
+}
 
 // Convert Airtable record to Contact
-export function airtableToContact(record: any): Contact {
+export function airtableToContact(record: Record<FieldSet>): Contact {
+  console.log("Processing record:", record.id, JSON.stringify(record.fields, null, 2));
   return {
     id: record.id,
-    name: record.get("Name") || "",
-    role: record.get("Role") || "",
-    status: record.get("Status") || "Active",
-    category: record.get("Category") || "Client",
-    description: record.get("Description") || "",
+    name: String(record.fields.name || ""),
+    role: String(record.fields.role || ""),
+    status: toContactStatus(record.fields.status),
+    category: toContactCategory(record.fields.category),
+    description: String(record.fields.description || ""),
     picture: undefined, // Not in Airtable schema
-    birthday: record.get("Birthday") || undefined,
-    age: record.get("Age")?.toString() || undefined,
+    birthday: record.fields.birthday ? String(record.fields.Birthday) : undefined,
+    age: record.fields.age ? String(record.fields.age) : undefined,
     address: {
-      street: "", // Address is a single field in Airtable
+      street: String(record.fields.address || ""),
       city: "",
       state: "",
       zipCode: "",
       country: "",
     },
-    hasKids: record.get("Has Kids") || false,
-    numberOfKids: record.get("Number of Kids") || 0,
-    maritalStatus: record.get("Marital Status") || undefined,
-    additionalDetails: record.get("Additional Details") || "",
+    hasKids: Boolean(record.fields["has kids"] || false),
+    numberOfKids: Number(record.fields["number of kids"] || 0),
+    maritalStatus: toMaritalStatus(record.fields["marital status"]),
+    additionalDetails: String(record.fields["additional details"] || ""),
     communications: [], // Will be populated separately
-    lastContactedAt: record.get("Last Contacted At") || null,
-    createdAt: record.get("Created At") || new Date().toISOString(),
-    updatedAt: record.get("Updated At") || new Date().toISOString(),
-    phoneNumber: record.get("Phone") || "",
-    email: record.get("Email") || "",
-    contactType: undefined, // Not in Airtable schema
-    contactDate: undefined, // Not in Airtable schema
+    lastContactedAt: record.fields["last contacted at"] ? String(record.fields["last contacted at"]) : null,
+    createdAt: String(record.fields["created at"] || new Date().toISOString()),
+    updatedAt: String(record.fields["updated at"] || new Date().toISOString()),
+    phoneNumber: String(record.fields.phone || ""),
+    email: String(record.fields.email || ""),
+    contactType: toContactType(record.fields["contact type"]),
+    contactDate: record.fields["contact date"] ? String(record.fields["contact date"]) : undefined,
+  };
+}
+
+// Convert Airtable record to CommunicationEntry
+export function airtableToCommunication(record: Record<FieldSet>): CommunicationEntry {
+  console.log("Processing communication record:", record.id, JSON.stringify(record.fields, null, 2));
+  const typeValue = record.fields.type || [];
+  const notesValue = record.fields.notes || "";
+  const dateValue = record.fields.date || new Date().toISOString();
+  return {
+    id: record.id,
+    types: Array.isArray(typeValue) ? typeValue : [typeValue],
+    notes: String(notesValue),
+    timestamp: String(dateValue),
+  };
+}
+
+// Fetch all contacts (real data)
+export async function fetchContacts(): Promise<Contact[]> {
+  try {
+    console.log("Fetching contacts from Airtable...");
+    const table = base(CONTACTS_TABLE);
+    const records = await table.select({ maxRecords: 1 }).firstPage();
+    if (records.length > 0) {
+      console.log("Sample record fields:", Object.keys(records[0].fields));
+    } else {
+      console.log("No records found in Contacts table.");
+      return [];
+    }
+
+    const allRecords = await table.select().all();
+    console.log(`Retrieved ${allRecords.length} contact records from Airtable`);
+
+    if (allRecords.length > 0) {
+      console.log("First record:", JSON.stringify(allRecords[0].fields, null, 2));
+      if (allRecords.length > 1) {
+        console.log("Second record:", JSON.stringify(allRecords[1].fields, null, 2));
+      }
+    }
+
+    return allRecords.map((record) => airtableToContact(record));
+  } catch (error) {
+    console.error("Error fetching contacts:", error);
+    return [];
   }
 }
 
-// Convert Contact to Airtable fields
-export function contactToAirtable(contact: Contact): Record<string, any> {
-  // Combine address fields into a single string for Airtable
-  const addressString = [
-    contact.address?.street,
-    contact.address?.city,
-    contact.address?.state,
-    contact.address?.zipCode,
-    contact.address?.country,
-  ]
-    .filter(Boolean)
-    .join(", ")
+// Fetch all communications (real data)
+export async function fetchAllCommunications(): Promise<CommunicationEntry[]> {
+  try {
+    console.log("Fetching communications from Airtable...");
+    const table = base(COMMUNICATIONS_TABLE);
+    const records = await table.select().all();
+    console.log(`Retrieved ${records.length} communication records from Airtable`);
 
-  // Create a clean object with only the fields that exist in Airtable
-  const fields: Record<string, any> = {
-    Name: contact.name,
-    Role: contact.role || "",
-    Status: contact.status || "Active",
-    Category: contact.category || "Client",
-    Description: contact.description || "",
-    Phone: contact.phoneNumber || "",
-    Email: contact.email || "",
+    if (records.length > 0) {
+      console.log("First communication record:", JSON.stringify(records[0].fields, null, 2));
+      if (records.length > 1) {
+        console.log("Second communication record:", JSON.stringify(records[1].fields, null, 2));
+      }
+    }
+
+    return records.map((record) => airtableToCommunication(record));
+  } catch (error) {
+    console.error("Error fetching communications:", error);
+    return [];
   }
+}
 
-  // Only add fields if they have values
-  if (contact.birthday) fields.Birthday = contact.birthday
-  if (contact.age) fields.Age = Number.parseInt(contact.age.toString())
-  if (addressString) fields.Address = addressString
-  if (contact.hasKids !== undefined) fields["Has Kids"] = contact.hasKids
-  if (contact.numberOfKids !== undefined) fields["Number of Kids"] = contact.numberOfKids
-  if (contact.maritalStatus) fields["Marital Status"] = contact.maritalStatus
-  if (contact.additionalDetails) fields["Additional Details"] = contact.additionalDetails
-  if (contact.lastContactedAt) fields["Last Contacted At"] = contact.lastContactedAt
+// Fetch a single contact by ID and its communications
+export async function fetchContact(id: string): Promise<Contact | null> {
+  try {
+    const record = await base(CONTACTS_TABLE).find(id);
+    if (!record || !record.fields) {
+      console.error(`No record found with ID ${id} or record has no fields`);
+      return null;
+    }
+    const contact = airtableToContact(record);
+    contact.communications = await fetchCommunications(id);
+    return contact;
+  } catch (error) {
+    console.error(`Error fetching contact ${id}:`, error);
+    return null;
+  }
+}
 
-  // Always include timestamps
-  fields["Created At"] = contact.createdAt || new Date().toISOString()
-  fields["Updated At"] = new Date().toISOString()
+// Fetch communications for a specific contact
+export async function fetchCommunications(contactId: string): Promise<CommunicationEntry[]> {
+  try {
+    console.log(`Fetching communications for contact ${contactId}`);
+    const records = await base(COMMUNICATIONS_TABLE)
+      .select({
+        filterByFormula: `{Contact} = '${contactId}'`,
+      })
+      .all();
 
-  console.log("Prepared Airtable fields:", JSON.stringify(fields, null, 2))
-  return fields
+    console.log(`Found ${records.length} communications for contact ${contactId}`);
+    if (records.length > 0) {
+      console.log("First communication for contact:", JSON.stringify(records[0].fields, null, 2));
+    }
+
+    return records.map((record) => airtableToCommunication(record));
+  } catch (error) {
+    console.error(`Error fetching communications for contact ${contactId}:`, error);
+    return [];
+  }
 }
 
 // Create a new contact
-export async function createContact(contact: Omit<Contact, "id">): Promise<Contact | null> {
+export async function createContact(
+  contact: Omit<Contact, "id" | "communications" | "createdAt" | "updatedAt">
+): Promise<Contact> {
   try {
-    console.log("Creating contact in Airtable:", JSON.stringify(contact, null, 2))
-    const fields = contactToAirtable(contact as Contact)
+    console.log("Creating contact in Airtable:", contact);
+    const fields: AirtableContactFields = {
+      name: contact.name,
+      role: contact.role,
+      status: contact.status,
+      category: contact.category,
+      description: contact.description,
+      birthday: contact.birthday,
+      age: contact.age ? String(contact.age) : undefined,
+      address: JSON.stringify(contact.address) || contact.address.street,
+      "has kids": contact.hasKids,
+      "number of kids": contact.numberOfKids,
+      "marital status": contact.maritalStatus,
+      "additional details": contact.additionalDetails,
+      "last contacted at": contact.lastContactedAt ?? undefined, // Convert null to undefined
+      phone: contact.phoneNumber,
+      email: contact.email,
+      "contact type": contact.contactType,
+      "contact date": contact.contactDate,
+    };
 
-    // Log the exact data being sent to Airtable
-    console.log("Sending to Airtable:", JSON.stringify(fields, null, 2))
+    // Remove undefined fields to avoid Airtable errors
+    Object.keys(fields).forEach(
+      (key) => fields[key as keyof AirtableContactFields] === undefined && delete fields[key as keyof AirtableContactFields]
+    );
 
-    const record = await base(CONTACTS_TABLE).create(fields)
-    return airtableToContact(record)
+    const createdRecords: Records<FieldSet> = await base(CONTACTS_TABLE).create([{ fields }]);
+    const record = createdRecords[0]; // Access the first record
+    return airtableToContact(record);
   } catch (error) {
-    console.error("Error creating contact in Airtable:", error)
-    // Enhance error message with more details
-    const errorMessage = (error as any).message || "Unknown error"
-    const statusCode = (error as any).statusCode
-    const errorDetails = (error as any).error
-
-    throw new Error(
-      `Failed to create contact: ${errorMessage}. Status: ${statusCode}. Details: ${JSON.stringify(errorDetails)}`,
-    )
-  }
-}
-
-// Fetch all contacts
-export async function fetchContacts(): Promise<Contact[]> {
-  try {
-    const records = await base(CONTACTS_TABLE).select().all()
-    const contacts = records.map(airtableToContact)
-
-    // Fetch communications for each contact
-    for (const contact of contacts) {
-      contact.communications = await fetchCommunications(contact.id)
-    }
-
-    return contacts
-  } catch (error) {
-    console.error("Error fetching contacts:", error)
-    return []
-  }
-}
-
-// Fetch a single contact by ID
-export async function fetchContact(id: string): Promise<Contact | null> {
-  try {
-    const record = await base(CONTACTS_TABLE).find(id)
-    const contact = airtableToContact(record)
-
-    // Fetch communications for this contact
-    contact.communications = await fetchCommunications(id)
-
-    return contact
-  } catch (error) {
-    console.error(`Error fetching contact ${id}:`, error)
-    return null
+    console.error("Error creating contact:", error);
+    throw error;
   }
 }
 
 // Update an existing contact
-export async function updateContact(id: string, contact: Partial<Contact>): Promise<Contact | null> {
+export async function updateContact(id: string, contactData: Partial<Contact>): Promise<Contact | null> {
   try {
-    const fields = contactToAirtable(contact as Contact)
-    const record = await base(CONTACTS_TABLE).update(id, fields)
-    return airtableToContact(record)
+    console.log(`Updating contact ${id} in Airtable:`, contactData);
+    const fields: AirtableContactFields = {
+      name: contactData.name,
+      role: contactData.role,
+      status: contactData.status,
+      category: contactData.category,
+      description: contactData.description,
+      birthday: contactData.birthday,
+      age: contactData.age ? String(contactData.age) : undefined,
+      address: JSON.stringify(contactData.address) || contactData.address?.street,
+      "has kids": contactData.hasKids,
+      "number of kids": contactData.numberOfKids,
+      "marital status": contactData.maritalStatus,
+      "additional details": contactData.additionalDetails,
+      "last contacted at": contactData.lastContactedAt ?? undefined, // Convert null to undefined
+      phone: contactData.phoneNumber,
+      email: contactData.email,
+      "contact type": contactData.contactType,
+      "contact date": contactData.contactDate,
+    };
+
+    // Remove undefined fields to avoid Airtable errors
+    Object.keys(fields).forEach(
+      (key) => fields[key as keyof AirtableContactFields] === undefined && delete fields[key as keyof AirtableContactFields]
+    );
+
+    const updatedRecords: Records<FieldSet> = await base(CONTACTS_TABLE).update([{ id, fields }]);
+    const updatedRecord = updatedRecords[0]; // Access the first record
+    return updatedRecord ? airtableToContact(updatedRecord) : null;
   } catch (error) {
-    console.error(`Error updating contact ${id}:`, error)
-    throw new Error(`Failed to update contact: ${(error as Error).message}`)
+    console.error(`Error updating contact ${id}:`, error);
+    throw error;
   }
 }
 
 // Delete a contact
 export async function deleteContact(id: string): Promise<boolean> {
   try {
-    await base(CONTACTS_TABLE).destroy(id)
-    return true
-  } catch (error) {
-    console.error(`Error deleting contact ${id}:`, error)
-    throw new Error(`Failed to delete contact: ${(error as Error).message}`)
-  }
-}
+    console.log(`Deleting contact ${id} from Airtable`);
+    
+    // Verify the contact exists
+    const record = await base(CONTACTS_TABLE).find(id).catch(() => null);
+    if (!record) {
+      console.log(`Contact ${id} not found in Airtable`);
+      return false; // Return false if not found instead of throwing
+    }
 
-// Fetch communications for a contact
-export async function fetchCommunications(contactId: string): Promise<CommunicationEntry[]> {
-  try {
-    const records = await base(COMMUNICATIONS_TABLE)
+    // Delete associated communications (optional, adjust based on your needs)
+    const communications = await base(COMMUNICATIONS_TABLE)
       .select({
-        filterByFormula: `FIND("${contactId}", ARRAYJOIN(Contact, ",")) > 0`,
+        filterByFormula: `{Contact} = '${id}'`,
       })
-      .all()
+      .all();
 
-    return records.map(airtableToCommunication)
+    if (communications.length > 0) {
+      const communicationIds = communications.map((rec) => rec.id);
+      await base(COMMUNICATIONS_TABLE).destroy(communicationIds);
+      console.log(`Deleted ${communicationIds.length} communications for contact ${id}`);
+    }
+
+    // Delete the contact
+    await base(CONTACTS_TABLE).destroy([id]);
+    console.log(`Successfully deleted contact ${id}`);
+    return true;
   } catch (error) {
-    console.error(`Error fetching communications for contact ${contactId}:`, error)
-    return []
+    console.error(`Error deleting contact ${id}:`, error);
+    throw error;
   }
 }
 
-// Convert Airtable record to Communication
-export function airtableToCommunication(record: any): CommunicationEntry {
-  return {
-    id: record.id,
-    types: record.get("Type") || [],
-    notes: record.get("Notes") || "",
-    timestamp: record.get("Date") || new Date().toISOString(),
+// Example function to fetch and log all data
+export async function fetchAndLogAllData() {
+  console.log("=== Fetching All Data ===");
+  
+  // Fetch and log all contacts
+  console.log("\nFetching Contacts...");
+  const contacts = await fetchContacts();
+  console.log("Contacts Data:", JSON.stringify(contacts, null, 2));
+
+  // Fetch and log all communications
+  console.log("\nFetching Communications...");
+  const communications = await fetchAllCommunications();
+  console.log("Communications Data:", JSON.stringify(communications, null, 2));
+
+  // Optionally, fetch communications for a specific contact
+  if (contacts.length > 0) {
+    const firstContactId = contacts[0].id;
+    console.log(`\nFetching communications for contact ${firstContactId}...`);
+    const contactCommunications = await fetchCommunications(firstContactId);
+    console.log(`Communications for contact ${firstContactId}:`, JSON.stringify(contactCommunications, null, 2));
   }
 }
-
-// Convert Communication to Airtable fields
-export function communicationToAirtable(comm: CommunicationEntry, contactId: string): Record<string, any> {
-  return {
-    Contact: [contactId],
-    Type: comm.types,
-    Notes: comm.notes,
-    Date: comm.timestamp,
-  }
-}
-
-// Create a new communication
-export async function createCommunication(
-  contactId: string,
-  communication: Omit<CommunicationEntry, "id">,
-): Promise<CommunicationEntry | null> {
-  try {
-    const fields = communicationToAirtable(communication as CommunicationEntry, contactId)
-    const record = await base(COMMUNICATIONS_TABLE).create(fields)
-
-    // Update the LastContactedAt field for the contact
-    await base(CONTACTS_TABLE).update(contactId, {
-      "Last Contacted At": new Date().toISOString(),
-    })
-
-    return airtableToCommunication(record)
-  } catch (error) {
-    console.error(`Error creating communication for contact ${contactId}:`, error)
-    throw new Error(`Failed to create communication: ${(error as Error).message}`)
-  }
-}
-

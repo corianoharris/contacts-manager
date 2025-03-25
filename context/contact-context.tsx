@@ -4,6 +4,7 @@ import type React from "react"
 import { createContext, useContext, useReducer, useEffect, useState } from "react"
 import { v4 as uuidv4 } from "uuid"
 import type { CommunicationType } from "@/types/contact"
+import { toast } from "@/hooks/use-toast"
 
 // Define ContactFormInput type for the form
 export interface ContactFormInput {
@@ -155,20 +156,46 @@ const isBrowser = typeof window !== "undefined"
 // Function to check if API is available
 async function checkApiAvailability(): Promise<boolean> {
   if (!isBrowser) return false
-
   try {
+    console.log(`Checking API availability at: ${process.env.NEXT_PUBLIC_API_URL}/contacts`)
+
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+    const timeoutId = setTimeout(() => {
+      console.warn("Request timed out")
+      controller.abort()
+    }, 10000)
 
-    const response = await fetch(`${API_URL}/contacts`, {
-      method: "HEAD",
-      signal: controller.signal,
-    })
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/contacts`, {
+        method: "GET",
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+        },
+      })
 
-    clearTimeout(timeoutId)
-    return response.ok
+      clearTimeout(timeoutId)
+
+      console.log("API Response:", {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+      })
+
+      return response.ok
+    } catch (error) {
+      clearTimeout(timeoutId)
+
+      console.error("API Availability Error:", {
+        name: (error as Error).name,
+        message: (error as Error).message,
+        type: typeof error,
+      })
+
+      return false
+    }
   } catch (error) {
-    console.warn("API availability check failed:", error)
+    console.error("Unexpected error in API availability check:", error)
     return false
   }
 }
@@ -203,97 +230,79 @@ async function fetchContact(id: string) {
   }
 }
 
+async function handleResponse(response: Response) {
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+    throw new Error(errorData.error || `Request failed: ${response.status} ${response.statusText}`);
+  }
+  return response.json();
+}
+
 async function createContact(contact: Omit<Contact, "id">) {
   try {
-    console.log("Creating contact at:", `${API_URL}/contacts`)
-    console.log("Creating contact with data:", JSON.stringify(contact, null, 2))
+    console.log("Creating contact at:", `${API_URL}/contacts`);
 
     const response = await fetch(`${API_URL}/contacts`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(contact),
-    })
+    });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: "Unknown error" }))
-      console.error("Create contact error response:", errorData)
-      throw new Error(errorData.error || `Failed to create contact: ${response.status} ${response.statusText}`)
-    }
-
-    return response.json()
+    return await handleResponse(response);
   } catch (error) {
-    console.error("Error in createContact:", error)
-    throw new Error(`Failed to create contact: ${(error as Error).message || "Network error"}`)
+    console.error("Error in createContact:", error);
+    throw new Error(`Failed to create contact: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
 async function updateContactApi(id: string, contact: Partial<Contact>) {
+  if (!id) throw new Error("Contact ID is required");
+
   try {
     const response = await fetch(`${API_URL}/contacts/${id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(contact),
-    })
+    });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: "Failed to update contact" }))
-      throw new Error(errorData.error || "Failed to update contact")
-    }
-
-    return response.json()
+    return await handleResponse(response);
   } catch (error) {
-    console.error(`Error updating contact ${id}:`, error)
-    throw new Error(`Failed to update contact: ${(error as Error).message}`)
+    console.error(`Error updating contact ${id}:`, error);
+    throw new Error(`Failed to update contact: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
 async function deleteContactApi(id: string) {
+  if (!id) throw new Error("Contact ID is required");
+
   try {
-    const response = await fetch(`${API_URL}/contacts/${id}`, {
-      method: "DELETE",
-    })
+    const response = await fetch(`${API_URL}/contacts/${id}`, { method: "DELETE" });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: "Failed to delete contact" }))
-      throw new Error(errorData.error || "Failed to delete contact")
-    }
-
-    return response.json()
+    return await handleResponse(response);
   } catch (error) {
-    console.error(`Error deleting contact ${id}:`, error)
-    throw new Error(`Failed to delete contact: ${(error as Error).message}`)
+    console.error(`Error deleting contact ${id}:`, error);
+    throw new Error(`Failed to delete contact: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
 async function createCommunication(contactId: string, type: CommunicationType[], notes: string) {
+  if (!contactId) throw new Error("Contact ID is required");
+  if (!type || type.length === 0) throw new Error("Communication type is required");
+
   try {
     const response = await fetch(`${API_URL}/contacts/${contactId}/communications`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        types: type,
-        notes,
-        timestamp: new Date().toISOString(),
-      }),
-    })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ types: type, notes, timestamp: new Date().toISOString() }),
+    });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: "Failed to create communication" }))
-      throw new Error(errorData.error || "Failed to create communication")
-    }
-
-    return response.json()
+    return await handleResponse(response);
   } catch (error) {
-    console.error(`Error creating communication for contact ${contactId}:`, error)
-    throw new Error(`Failed to create communication: ${(error as Error).message}`)
+    console.error(`Error creating communication for contact ${contactId}:`, error);
+    throw new Error(`Failed to create communication: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
+
 
 // Reducer function
 function contactReducer(state: ContactState, action: ContactAction): ContactState {
@@ -514,13 +523,17 @@ export const ContactProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Function to sync local changes with the server
   const syncWithServer = async () => {
-    // First check if we can connect to the API
+    // Check API availability
     const isApiAvailable = await checkApiAvailability()
-
-    if (!isApiAvailable) {
+    if (!isApiAvailable && !state.offlineMode) {
       dispatch({
         type: "SET_ERROR",
-        payload: "Cannot sync: Server is still unavailable.",
+        payload: "Cannot sync: Server is unavailable.",
+      })
+      toast({
+        title: "Server Unavailable",
+        description: "Please try again later.",
+        variant: "destructive",
       })
       return
     }
@@ -529,39 +542,64 @@ export const ContactProvider: React.FC<{ children: React.ReactNode }> = ({ child
     dispatch({ type: "SET_SYNCING", payload: true })
 
     try {
-      // Process all unsynced contacts
       const unsyncedContacts = state.contacts.filter((contact) => contact._synced === false)
       console.log(`Found ${unsyncedContacts.length} unsynced contacts to sync`)
 
-      // Track successful and failed syncs
       let successCount = 0
       let failureCount = 0
 
       // Process each unsynced contact
       for (const contact of unsyncedContacts) {
         try {
-          // Skip contacts marked for deletion
           if (contact._deleted) {
-            try {
-              await deleteContactApi(contact.id)
-              successCount++
-            } catch (error) {
-              console.error(`Failed to delete contact ${contact.id}:`, error)
-              failureCount++
+            if (!contact.id) {
+              throw new Error("Missing contact ID for deletion")
+            }
+
+            // Handle offline deletions for unsynced contacts
+            if (state.offlineMode || !isApiAvailable) {
+              // If contact was never synced (local-only), remove it locally
+              if (!contact._synced) {
+                dispatch({ type: "REMOVE_PENDING_CHANGE", payload: contact.id })
+                successCount++
+                console.log(`Locally removed unsynced contact ${contact.id}`)
+                continue
+              }
+            }
+
+            // Online deletion for synced contacts
+            let attempts = 0
+            const maxAttempts = 3
+            while (attempts < maxAttempts) {
+              try {
+                await deleteContactApi(contact.id)
+                dispatch({ type: "REMOVE_PENDING_CHANGE", payload: contact.id })
+                successCount++
+                break
+              } catch (error) {
+                attempts++
+                if (attempts === maxAttempts) {
+                  throw error
+                }
+                await new Promise((resolve) => setTimeout(resolve, 1000))
+              }
             }
             continue
           }
 
-          // Clean up internal tracking properties before sending to API
+          // Handle create/update for non-deleted contacts (only when online)
+          if (!isApiAvailable) {
+            console.log(`Skipping sync for contact ${contact.id} due to offline mode`)
+            continue
+          }
+
           const cleanContact = { ...contact }
           delete cleanContact._synced
           delete cleanContact._deleted
 
-          // Check if this is a new contact (no server ID) or an update
           const isNew = state.pendingChanges.some((change) => change.id === contact.id && change.type === "create")
 
           if (isNew) {
-            // Create new contact on server
             const newContact = await createContact(cleanContact)
             dispatch({
               type: "UPDATE_CONTACT",
@@ -569,7 +607,6 @@ export const ContactProvider: React.FC<{ children: React.ReactNode }> = ({ child
             })
             successCount++
           } else {
-            // Update existing contact
             const updatedContact = await updateContactApi(contact.id, cleanContact)
             dispatch({
               type: "UPDATE_CONTACT",
@@ -578,45 +615,58 @@ export const ContactProvider: React.FC<{ children: React.ReactNode }> = ({ child
             successCount++
           }
         } catch (error) {
-          console.error(`Failed to sync contact ${contact.id}:`, error)
+          console.error(`Failed to sync contact ${contact.id || "unknown"}:`, error)
           failureCount++
+          dispatch({
+            type: "SET_ERROR",
+            payload: `Failed to process contact ${contact.id || "unknown"}: ${(error as Error).message}`,
+          })
         }
       }
 
-      // If all syncs were successful, switch back to online mode
+      // Handle sync results
       if (failureCount === 0 && successCount > 0) {
         dispatch({ type: "SET_OFFLINE_MODE", payload: false })
-        dispatch({
-          type: "SET_ERROR",
-          payload: `Successfully synced ${successCount} contacts with the server.`,
-        })
-
-        // Clear pending changes
         dispatch({ type: "CLEAR_PENDING_CHANGES" })
-
-        // Refresh all contacts from server to ensure we're in sync
         try {
-          const serverContacts = await fetchContacts()
-          dispatch({ type: "SET_CONTACTS", payload: serverContacts })
+          if (isApiAvailable) {
+            const serverContacts = await fetchContacts()
+            dispatch({ type: "SET_CONTACTS", payload: serverContacts })
+          }
+          toast({
+            title: "Sync Successful",
+            description: `Processed ${successCount} contacts${isApiAvailable ? " with the server" : " locally"}.`,
+          })
         } catch (error) {
           console.error("Failed to refresh contacts after sync:", error)
+          dispatch({
+            type: "SET_ERROR",
+            payload: "Sync succeeded but failed to refresh contacts.",
+          })
         }
       } else if (successCount > 0) {
-        dispatch({
-          type: "SET_ERROR",
-          payload: `Partially synced: ${successCount} succeeded, ${failureCount} failed.`,
+        toast({
+          title: "Partial Sync",
+          description: `${successCount} succeeded, ${failureCount} failed.`,
+          variant: "warning",
         })
       } else {
-        dispatch({
-          type: "SET_ERROR",
-          payload: "Sync failed. Please try again later.",
+        toast({
+          title: "Sync Failed",
+          description: "No contacts were processed. Please try again.",
+          variant: "destructive",
         })
       }
     } catch (error) {
-      console.error("Error during sync:", error)
+      console.error("Unexpected error during sync:", error)
       dispatch({
         type: "SET_ERROR",
-        payload: `Sync error: ${(error as Error).message}`,
+        payload: `Sync error: ${(error as Error).message || "Unknown error"}`,
+      })
+      toast({
+        title: "Sync Error",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
       })
     } finally {
       dispatch({ type: "SET_SYNCING", payload: false })
@@ -764,6 +814,10 @@ export const ContactProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         case "UPDATE_CONTACT":
           try {
+            if (!action.payload.id) {
+              throw new Error("Cannot update contact: Missing contact ID")
+            }
+
             // Update local state first
             dispatch({ type: "UPDATE_CONTACT", payload: action.payload })
 

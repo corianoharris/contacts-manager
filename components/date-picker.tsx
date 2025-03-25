@@ -15,6 +15,7 @@ interface DatePickerProps {
   maxDate?: Date
   minDate?: Date
   disabled?: boolean
+  isBirthday?: boolean // New prop to indicate if it's a birthday picker
 }
 
 export function DatePicker({
@@ -26,7 +27,11 @@ export function DatePicker({
   maxDate,
   minDate,
   disabled = false,
+  isBirthday = false, // Default to false
 }: DatePickerProps) {
+  // Choose format based on whether it's a birthday
+  const dateFormat = isBirthday ? "MMMM d" : "PPP"; // "MMMM d" for birthday (no year), "PPP" for full date
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -36,7 +41,7 @@ export function DatePicker({
           disabled={disabled}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {value ? format(value, "PPP") : <span>{placeholder}</span>}
+          {value ? format(value, dateFormat) : <span>{placeholder}</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -55,4 +60,3 @@ export function DatePicker({
     </Popover>
   )
 }
-

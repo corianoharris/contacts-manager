@@ -27,7 +27,7 @@ export enum CommunicationType {
   Email = "Email",
 }
 
-export type MaritalStatus = "Single" | "Divorced" | "Separated" | "Widow"
+export type MaritalStatus = "Single" | "Divorced" | "Separated" | "Widow" 
 
 export interface CommunicationEntry {
   id: string
