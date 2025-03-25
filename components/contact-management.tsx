@@ -69,21 +69,18 @@ export default function ContactManagement() {
 
   // Adding a new contact
   const handleAddContact = (contact: ContactFormInput) => {
-    // Prevent adding if at limit
     if (isAtContactLimit) {
       toast({
         title: "Contact Limit Reached",
-        description:
-          "You've reached the maximum of 150 contacts (Dunbar's number). Please archive some contacts first.",
+        description: "You've reached the maximum of 150 contacts (Dunbar's number). Please archive some contacts first.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
-
-    // Prepare the contact data
+  
     const newContact = {
       ...contact,
-      id: contact.id || uuidv4(), // Ensure we have an ID
+      id: contact.id || uuidv4(),
       picture: contact.picture || undefined,
       address: {
         street: contact.address?.street || "",
@@ -98,29 +95,26 @@ export default function ContactManagement() {
       additionalDetails: contact.additionalDetails || "",
       birthday: contact.birthday || undefined,
       age: contact.age || undefined,
-      communications: [], // Initialize empty communications array
-      lastContactedAt: null, // Initialize lastContactedAt as null
-      createdAt: new Date().toISOString(), // Set creation date
-      updatedAt: new Date().toISOString(), // Set update date
-    }
-
-    console.log("Dispatching ADD_CONTACT with:", JSON.stringify(newContact, null, 2))
-
-    // Use local state to track the operation
-    setIsAddingContact(false) // Close the form immediately for better UX
-
-    // Show loading toast
+      communications: [],
+      lastContactedAt: contact.contactDate || null, // Set lastContactedAt to contactDate if provided
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  
+    console.log("Dispatching ADD_CONTACT with:", JSON.stringify(newContact, null, 2));
+  
+    setIsAddingContact(false);
+  
     toast({
       title: "Adding Contact...",
       description: "Please wait while we add the contact.",
-    })
-
-    // Dispatch the action
+    });
+  
     dispatch({
       type: "ADD_CONTACT",
       payload: newContact,
-    })
-  }
+    });
+  };
 
   // Convert context contact to types/contact format
   const convertToTypeContact = (contextContact: any): Contact => {
@@ -173,7 +167,7 @@ export default function ContactManagement() {
             type: entry.types,
             notes: entry.notes,
           })) || [],
-        lastContactedAt: updatedContact.lastContactedAt || null,
+        lastContactedAt: updatedContact.contactDate || updatedContact.lastContactedAt || null, // Prefer contactDate if provided
         picture: updatedContact.picture || "",
         address: {
           street: updatedContact.address?.street || "",
@@ -189,15 +183,15 @@ export default function ContactManagement() {
         birthday: updatedContact.birthday || "",
         age: updatedContact.age || 0,
       } as any,
-    })
-
-    setEditingContact(null)
-
+    });
+  
+    setEditingContact(null);
+  
     toast({
       title: "Contact Updated",
       description: `${updatedContact.name}'s information has been updated.`,
-    })
-  }
+    });
+  };
 
   // Deleting a contact
   const handleDeleteContact = (id: string) => {

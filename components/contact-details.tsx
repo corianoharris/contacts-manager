@@ -22,9 +22,10 @@ import {
 import ContactForm from "./contact-form"
 import CommunicationForm from "./communication-form"
 import type { CommunicationType, Contact as TypesContact } from "@/types/contact"
-import { getStatusColor, getCommunicationIcon } from "@/lib/ui-helpers"
+import { getStatusColor, getCommunicationTypeIcon } from "@/lib/ui-helpers"
 import { contextToTypesContact, typesToContextContact } from "@/lib/type-adapters"
 import { formatPhoneNumber } from "@/lib/format-utils"
+import React from "react"
 
 export default function ContactDetails() {
   const { state, dispatch } = useContact()
@@ -34,7 +35,6 @@ export default function ContactDetails() {
   const contextContact = state.selectedContact
   if (!contextContact) return null
 
-  // Convert the context contact to the types contact format for the form
   const contact = contextToTypesContact(contextContact)
 
   const getInitials = (name: string) => {
@@ -60,18 +60,15 @@ export default function ContactDetails() {
   }
 
   const handleSaveContact = (updatedTypesContact: TypesContact) => {
-    // Create a merged contact that preserves important properties from the original
     const mergedContact: TypesContact = {
       ...updatedTypesContact,
       id: contextContact.id,
       createdAt: contextContact.createdAt,
-      communications: contact.communications,
-      lastContactedAt: contextContact.lastContactedAt, // Preserve the original lastContactedAt
+      communications: contact.communications || [],
+      lastContactedAt: contextContact.lastContactedAt,
     }
 
-    // Convert back to context format before dispatching
     const updatedContextContact = typesToContextContact(mergedContact)
-
     dispatch({
       type: "UPDATE_CONTACT",
       payload: updatedContextContact,
@@ -91,12 +88,32 @@ export default function ContactDetails() {
     })
   }
 
-  // Determine if contact has been contacted before
-  const hasBeenContacted = contextContact.communications && contextContact.communications.length > 0
+  // Determine the most recent valid communication date
+  const getLastValidContactDate = () => {
+    if (!contextContact.communications?.length) return null
 
-  // Get last contacted date from communications if lastContactedAt is null
-  const lastContactedDate =
-    contextContact.lastContactedAt || (hasBeenContacted ? contextContact.communications[0].date : null)
+    // Sort communications by date (most recent first)
+    const sortedCommunications = [...contextContact.communications].sort((a, b) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    )
+
+    // Find the first communication with a valid type and date
+    const validCommunication = sortedCommunications.find(comm => {
+      const hasValidType = Array.isArray(comm.type) 
+        ? comm.type.length > 0 
+        : !!comm.type
+      const hasValidDate = !!comm.date
+      return hasValidType && hasValidDate
+    })
+
+    return validCommunication?.date ? new Date(validCommunication.date) : null
+  }
+
+  const lastContactedDate = contextContact.lastContactedAt 
+    ? new Date(contextContact.lastContactedAt)
+    : getLastValidContactDate()
+
+  const hasBeenContacted = !!lastContactedDate
 
   return (
     <>
@@ -132,7 +149,6 @@ export default function ContactDetails() {
           </CardHeader>
 
           <CardContent className="pt-6">
-            {/* Contact quick info with phone and email */}
             {(contact.phoneNumber || contact.email) && (
               <div className="flex flex-wrap gap-4 mb-6">
                 {contact.phoneNumber && (
@@ -186,8 +202,6 @@ export default function ContactDetails() {
                       <p>{contact.maritalStatus}</p>
                     </div>
                   )}
-
-                  {/* Phone number and email in details section too */}
                   {contact.phoneNumber && (
                     <div className="space-y-1">
                       <p className="text-sm font-medium text-muted-foreground">Phone Number</p>
@@ -225,8 +239,8 @@ export default function ContactDetails() {
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">Last Contacted</p>
                   <p>
-                    {lastContactedDate && lastContactedDate !== null
-                      ? `${format(new Date(lastContactedDate), "PPpp")} (${formatDistanceToNow(new Date(lastContactedDate), { addSuffix: true })})`
+                    {lastContactedDate
+                      ? `${format(lastContactedDate, "PPpp")} (${formatDistanceToNow(lastContactedDate, { addSuffix: true })})`
                       : "Never contacted"}
                   </p>
                 </div>
@@ -238,11 +252,11 @@ export default function ContactDetails() {
                 <div className="space-y-4">
                   <h3 className="font-medium">Communication History</h3>
 
-                  {!contextContact.communications || contextContact.communications.length === 0 ? (
+                  {!contextContact.communications?.length ? (
                     <p className="text-muted-foreground">No communication history</p>
                   ) : (
                     <div className="space-y-4">
-                      {contextContact.communications?.map((comm) => (
+                      {contextContact.communications.map((comm) => (
                         <div key={comm.id} className="border rounded-lg p-4">
                           <div className="flex justify-between items-start">
                             <div className="space-y-1">
@@ -253,13 +267,13 @@ export default function ContactDetails() {
                                       key={type}
                                       className="flex items-center space-x-1 bg-muted px-2 py-1 rounded-md"
                                     >
-                                      {getCommunicationIcon(type)}
+                                      {React.createElement(getCommunicationTypeIcon(type))}
                                       <span className="text-sm capitalize">{type}</span>
                                     </div>
                                   ))
                                 ) : (
                                   <div className="flex items-center space-x-1 bg-muted px-2 py-1 rounded-md">
-                                    {getCommunicationIcon(comm.type)}
+                                    {React.createElement(getCommunicationTypeIcon(comm.type))}
                                     <span className="text-sm capitalize">{comm.type}</span>
                                   </div>
                                 )}
@@ -305,4 +319,3 @@ export default function ContactDetails() {
     </>
   )
 }
-

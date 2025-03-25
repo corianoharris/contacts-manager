@@ -1,4 +1,6 @@
 "use client"
+
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -8,7 +10,6 @@ import { formatDistanceToNow } from "date-fns"
 import { formatPhoneNumber } from "@/lib/format-utils"
 import { getStatusColor } from "@/lib/ui-helpers"
 import type { Contact } from "@/types/contact"
-import { useState, useEffect } from "react"
 
 interface ContactListProps {
   contacts: Contact[]
@@ -47,6 +48,27 @@ export function ContactList({ contacts, onEdit, onDelete, pageSize = 6 }: Contac
     }
   }
 
+  // Function to get the most recent valid communication date
+  const getLastValidContactDate = (contact: Contact) => {
+    if (!contact.communications?.length) return null
+
+    // Sort communications by date (most recent first)
+    const sortedCommunications = [...contact.communications].sort((a, b) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    )
+
+    // Find the first communication with a valid type and date
+    const validCommunication = sortedCommunications.find(comm => {
+      const hasValidType = Array.isArray(comm.type) 
+        ? comm.type.length > 0 
+        : !!comm.type
+      const hasValidDate = !!comm.date
+      return hasValidType && hasValidDate
+    })
+
+    return validCommunication?.date ? new Date(validCommunication.date) : null
+  }
+
   if (contacts.length === 0) {
     return (
       <div className="text-center p-8 border rounded-lg bg-background">
@@ -67,62 +89,68 @@ export function ContactList({ contacts, onEdit, onDelete, pageSize = 6 }: Contac
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {paginatedContacts.map((contact) => (
-          <Card key={contact.id} className="overflow-hidden">
-            <CardContent className="p-0">
-              <div className="p-4 flex items-start gap-4">
-                <Avatar className="h-12 w-12">
-                  <AvatarImage src={contact.picture} alt={contact.name} />
-                  <AvatarFallback>{getInitials(contact.name)}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium truncate">{contact.name}</h3>
-                  <p className="text-sm text-muted-foreground truncate">{contact.role}</p>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    <Badge variant="secondary">{contact.category}</Badge>
-                    <Badge className={`text-white ${getStatusColor(contact.status)}`}>{contact.status}</Badge>
+        {paginatedContacts.map((contact) => {
+          const lastContactedDate = contact.lastContactedAt 
+            ? new Date(contact.lastContactedAt)
+            : getLastValidContactDate(contact)
+
+          return (
+            <Card key={contact.id} className="overflow-hidden">
+              <CardContent className="p-0">
+                <div className="p-4 flex items-start gap-4">
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={contact.picture} alt={contact.name} />
+                    <AvatarFallback>{getInitials(contact.name)}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium truncate">{contact.name}</h3>
+                    <p className="text-sm text-muted-foreground truncate">{contact.role}</p>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      <Badge variant="secondary">{contact.category}</Badge>
+                      <Badge className={`text-white ${getStatusColor(contact.status)}`}>{contact.status}</Badge>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Contact info */}
-              <div className="px-4 pb-2">
-                {(contact.phoneNumber || contact.email) && (
-                  <div className="flex flex-col gap-1 text-sm">
-                    {contact.phoneNumber && (
-                      <div className="flex items-center">
-                        <Phone className="mr-2 h-3 w-3 text-muted-foreground" />
-                        <span>{formatPhoneNumber(contact.phoneNumber)}</span>
-                      </div>
-                    )}
-                    {contact.email && (
-                      <div className="flex items-center">
-                        <Mail className="mr-2 h-3 w-3 text-muted-foreground" />
-                        <span className="truncate">{contact.email}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="px-4 py-2 bg-muted/50 flex justify-between items-center text-sm">
-                <span className="text-muted-foreground">
-                  {contact.lastContactedAt && contact.lastContactedAt !== null
-                    ? `Last contacted ${formatDistanceToNow(new Date(contact.lastContactedAt), { addSuffix: true })}`
-                    : "Never contacted"}
-                </span>
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" onClick={() => onEdit(contact)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => onDelete(contact.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                {/* Contact info */}
+                <div className="px-4 pb-2">
+                  {(contact.phoneNumber || contact.email) && (
+                    <div className="flex flex-col gap-1 text-sm">
+                      {contact.phoneNumber && (
+                        <div className="flex items-center">
+                          <Phone className="mr-2 h-3 w-3 text-muted-foreground" />
+                          <span>{formatPhoneNumber(contact.phoneNumber)}</span>
+                        </div>
+                      )}
+                      {contact.email && (
+                        <div className="flex items-center">
+                          <Mail className="mr-2 h-3 w-3 text-muted-foreground" />
+                          <span className="truncate">{contact.email}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+
+                <div className="px-4 py-2 bg-muted/50 flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">
+                    {lastContactedDate
+                      ? `Last contacted ${formatDistanceToNow(lastContactedDate, { addSuffix: true })}`
+                      : "Never contacted"}
+                  </span>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => onEdit(contact)}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => onDelete(contact.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
       {/* Pagination controls */}
@@ -141,12 +169,9 @@ export function ContactList({ contacts, onEdit, onDelete, pageSize = 6 }: Contac
           <div className="flex items-center gap-1">
             {/* Generate page buttons */}
             {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-              // Show first page, last page, current page, and pages around current
               const shouldShow = page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1
 
-              // Show ellipsis for gaps
               if (!shouldShow) {
-                // Only show one ellipsis between gaps
                 if (page === 2 || page === totalPages - 1) {
                   return (
                     <span key={`ellipsis-${page}`} className="px-2">
@@ -194,4 +219,3 @@ export function ContactList({ contacts, onEdit, onDelete, pageSize = 6 }: Contac
     </div>
   )
 }
-

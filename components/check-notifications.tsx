@@ -15,6 +15,25 @@ export function CheckNotifications({ contacts }: CheckNotificationsProps) {
   const [notifications, setNotifications] = useState<Array<{ id: string; message: string }>>([])
   const [dismissed, setDismissed] = useState<string[]>([])
 
+  // Function to get the most recent valid communication date
+  const getLastValidContactDate = (contact: Contact) => {
+    if (!contact.communications?.length) return null
+
+    const sortedCommunications = [...contact.communications].sort((a, b) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    )
+
+    const validCommunication = sortedCommunications.find(comm => {
+      const hasValidType = Array.isArray(comm.type) 
+        ? comm.type.length > 0 
+        : !!comm.type
+      const hasValidDate = !!comm.date
+      return hasValidType && hasValidDate
+    })
+
+    return validCommunication?.date ? new Date(validCommunication.date) : null
+  }
+
   // Check for contacts that haven't been contacted in 30 days
   useEffect(() => {
     const newNotifications: Array<{ id: string; message: string }> = []
@@ -23,7 +42,10 @@ export function CheckNotifications({ contacts }: CheckNotificationsProps) {
       // Skip if this notification was dismissed
       if (dismissed.includes(contact.id)) return
 
-      const lastContactedDate = contact.lastContactedAt ? new Date(contact.lastContactedAt) : null
+      // Use lastContactedAt if available, otherwise check communications
+      const lastContactedDate = contact.lastContactedAt 
+        ? new Date(contact.lastContactedAt)
+        : getLastValidContactDate(contact)
 
       // If never contacted
       if (!lastContactedDate) {
@@ -81,4 +103,3 @@ export function CheckNotifications({ contacts }: CheckNotificationsProps) {
     </div>
   )
 }
-

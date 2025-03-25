@@ -137,12 +137,17 @@ export function airtableToCommunication(record: Record<FieldSet>): Communication
   const notesValue = record.fields.notes || "";
   const dateValue = record.fields.date || new Date().toISOString();
   return {
-    id: record.id,
-    types: Array.isArray(typeValue) ? typeValue : [typeValue],
-    notes: String(notesValue),
-    timestamp: String(dateValue),
+  id: record.id,
+  types: Array.isArray(typeValue) ? typeValue : [typeValue],
+  notes: String(notesValue),
+  timestamp: String(dateValue),
+  date: "",
+  type: function (type: any): unknown
+  {
+    throw new Error("Function not implemented.");
+  },
   };
-}
+};
 
 // Fetch all contacts (real data)
 export async function fetchContacts(): Promise<Contact[]> {
@@ -254,20 +259,19 @@ export async function createContact(
       "number of kids": contact.numberOfKids,
       "marital status": contact.maritalStatus,
       "additional details": contact.additionalDetails,
-      "last contacted at": contact.lastContactedAt ?? undefined, // Convert null to undefined
+      "last contacted at": contact.contactDate || contact.lastContactedAt || undefined, // Use contactDate if available
       phone: contact.phoneNumber,
       email: contact.email,
       "contact type": contact.contactType,
       "contact date": contact.contactDate,
     };
 
-    // Remove undefined fields to avoid Airtable errors
     Object.keys(fields).forEach(
       (key) => fields[key as keyof AirtableContactFields] === undefined && delete fields[key as keyof AirtableContactFields]
     );
 
     const createdRecords: Records<FieldSet> = await base(CONTACTS_TABLE).create([{ fields }]);
-    const record = createdRecords[0]; // Access the first record
+    const record = createdRecords[0];
     return airtableToContact(record);
   } catch (error) {
     console.error("Error creating contact:", error);
@@ -292,20 +296,19 @@ export async function updateContact(id: string, contactData: Partial<Contact>): 
       "number of kids": contactData.numberOfKids,
       "marital status": contactData.maritalStatus,
       "additional details": contactData.additionalDetails,
-      "last contacted at": contactData.lastContactedAt ?? undefined, // Convert null to undefined
+      "last contacted at": contactData.contactDate || contactData.lastContactedAt || undefined, // Use contactDate if available
       phone: contactData.phoneNumber,
       email: contactData.email,
       "contact type": contactData.contactType,
       "contact date": contactData.contactDate,
     };
 
-    // Remove undefined fields to avoid Airtable errors
     Object.keys(fields).forEach(
       (key) => fields[key as keyof AirtableContactFields] === undefined && delete fields[key as keyof AirtableContactFields]
     );
 
     const updatedRecords: Records<FieldSet> = await base(CONTACTS_TABLE).update([{ id, fields }]);
-    const updatedRecord = updatedRecords[0]; // Access the first record
+    const updatedRecord = updatedRecords[0];
     return updatedRecord ? airtableToContact(updatedRecord) : null;
   } catch (error) {
     console.error(`Error updating contact ${id}:`, error);

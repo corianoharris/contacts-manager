@@ -162,11 +162,16 @@ export function typesToContextContact(contact: TypesContact): ContextContact {
  */
 function contextToTypesCommunication(comm: Communication): CommunicationEntry {
   return {
-    id: comm.id,
-    types: Array.isArray(comm.type) ? (comm.type as CommunicationType[]) : [comm.type as CommunicationType],
-    notes: comm.notes,
-    timestamp: comm.date,
-  }
+  id: comm.id,
+  types: Array.isArray(comm.type) ? (comm.type as CommunicationType[]) : [comm.type as CommunicationType],
+  notes: comm.notes,
+  timestamp: comm.date,
+  date: comm.date,
+  type: function (type: any): unknown
+  {
+    throw new Error("Function not implemented.")
+  },
+}
 }
 
 /**
