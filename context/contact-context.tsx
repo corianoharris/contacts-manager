@@ -145,6 +145,7 @@ export const useContact = () => useContext(ContactContext)
 const LOCAL_STORAGE_KEY = "contactManagementData"
 
 // API functions
+// Keep only this environment variable for client-side use
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api"
 console.log("Using API URL:", API_URL)
 

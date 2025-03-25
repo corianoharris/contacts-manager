@@ -18,18 +18,28 @@ export default function LoginPage() {
   const { dispatch } = useContact()
   const router = useRouter()
 
-  const handleLogin = (e: React.FormEvent) => {
+  // Change the handleLogin function to use a server API route instead of directly checking the password
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Get password from environment variable with fallback
-    const validPassword = process.env.APP_PASSWORD || "password"
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ password }),
+      })
 
-    // Check password only
-    if (password === validPassword) {
-      dispatch({ type: "SET_AUTHENTICATED", payload: true })
-      router.push("/")
-    } else {
-      setError("Invalid password")
+      if (response.ok) {
+        dispatch({ type: "SET_AUTHENTICATED", payload: true })
+        router.push("/")
+      } else {
+        setError("Invalid password")
+      }
+    } catch (error) {
+      console.error("Login error:", error)
+      setError("Login failed. Please try again.")
     }
   }
 
