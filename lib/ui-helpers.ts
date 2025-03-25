@@ -19,19 +19,17 @@ export const getStatusColor = (status: ContactStatus) => {
   }
 }
 
-export const getCommunicationIcon = (type: CommunicationType | string) => {
+export const getCommunicationTypeIcon = (type: CommunicationType) => {
   switch (type) {
     case CommunicationType.Call:
-      return <Phone className="h-3 w-3" />
+      return Phone
     case CommunicationType.Video:
-      return <Video className="h-3 w-3" />
-    case CommunicationType.Email:
-      return <Mail className="h-3 w-3" />
-    case "In Person":
+      return Video
     case CommunicationType.InPerson:
-      return <User className="h-3 w-3" />
+      return User
+    case CommunicationType.Email:
+      return Mail
     default:
-      return null
+      return User
   }
 }
-
