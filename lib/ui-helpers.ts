@@ -3,13 +3,10 @@ import { ContactStatus, CommunicationType } from "@/types/contact"
 
 export const getStatusColor = (status: ContactStatus) => {
   switch (status) {
-    case ContactStatus.ACTIVE:
     case ContactStatus.Active:
       return "bg-green-500"
-    case ContactStatus.INACTIVE:
     case ContactStatus.Inactive:
       return "bg-red-500"
-    case ContactStatus.PENDING:
     case ContactStatus.Pending:
       return "bg-yellow-500"
     case ContactStatus.Blocked:

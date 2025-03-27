@@ -204,7 +204,7 @@ export default function ContactForm({ contact, onSave, onCancel }: ContactFormPr
                   <SelectContent>
                     {Object.values(ContactStatus).map((status) => (
                       <SelectItem key={status} value={status}>
-                        {status}
+                        {status.toLocaleLowerCase()}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -61,10 +61,10 @@ interface AirtableContactFields {
 function toContactStatus(status: any): ContactStatus {
   if (!status) return ContactStatus.Active;
   const statusStr = String(status).toUpperCase();
-  if (statusStr === "ACTIVE") return ContactStatus.ACTIVE;
-  if (statusStr === "INACTIVE") return ContactStatus.INACTIVE;
-  if (statusStr === "PENDING") return ContactStatus.PENDING;
-  if (statusStr === "BLOCKED") return ContactStatus.Blocked;
+  if (statusStr === "Active") return ContactStatus.Active;
+  if (statusStr === "Inactive") return ContactStatus.Inactive;
+  if (statusStr === "Pending") return ContactStatus.Pending;
+  if (statusStr === "Blocked") return ContactStatus.Blocked;
   return ContactStatus.Active;
 }
 

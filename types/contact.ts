@@ -1,11 +1,8 @@
 export enum ContactStatus {
-  Active = "Active",
-  Inactive = "Inactive",
-  Pending = "Pending",
-  Blocked = "Blocked",
-  ACTIVE = "ACTIVE",
-  INACTIVE = "INACTIVE",
-  PENDING = "PENDING",
+  Active = "ACTIVE",
+  Inactive = "INACTIVE",
+  Pending = "PENDING",
+  Blocked = "BLOCKED",
 }
 
 export enum ContactCategory {
@@ -30,6 +27,8 @@ export enum CommunicationType {
 export type MaritalStatus = "Single" | "Divorced" | "Separated" | "Widow" 
 
 export interface CommunicationEntry {
+  date: string | number | Date
+  type(type: any): unknown
   id: string
   types: CommunicationType[]
   notes: string

@@ -12,10 +12,10 @@ export default function ContactStatistics() {
   // Calculate statistics
   const totalContacts = contacts.length
   const activeContacts = contacts.filter(
-    (contact) => contact.status === ContactStatus.Active || contact.status === ContactStatus.ACTIVE,
+    (contact) => contact.status === ContactStatus.Active
   ).length
   const inactiveContacts = contacts.filter(
-    (contact) => contact.status === ContactStatus.Inactive || contact.status === ContactStatus.INACTIVE,
+    (contact) => contact.status === ContactStatus.Inactive
   ).length
 
   // Calculate contacts contacted in the last 30 days
